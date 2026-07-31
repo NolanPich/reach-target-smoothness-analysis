@@ -89,5 +89,3 @@ The statistical analysis notebook requires R and the packages used for data mani
 **Laboratory :** EuroMov Digital Health in Motion, Univ Montpellier, IMT Mines Alès
 
 **Supervisor**: Dr Denis MOTTET
-
-```
