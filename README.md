@@ -68,7 +68,7 @@ The pipeline produces:
 - summary tables;
 - an HTML report containing the statistical analysis and visualizations.
   
-> Output files (HTML report, figures) are not tracked by Git and must be 
+> Output files (HTML report) are not tracked by Git and must be 
 > regenerated locally by running the pipeline.
 ---
 
