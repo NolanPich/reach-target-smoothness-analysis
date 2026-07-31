@@ -1,0 +1,390 @@
+---
+title: "Movement Smoothness Analysis"
+subtitle: "Statistical Report — Reach-to-Target Task"
+author: "Pichenot Nolan"
+date: "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    toc_depth: 3
+    number_sections: true
+    theme: flatly
+    highlight: tango
+    code_folding: hide
+    fig_width: 9
+    fig_height: 5
+params:
+  subject_id:  1   # Representative subject index displayed in velocity profile panels
+  segment_id:  10  # Movement segment displayed in velocity profile panels
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo    = TRUE,
+  warning = FALSE,
+  message = FALSE
+)
+```
+
+# Introduction
+
+This report presents all statistical analyses and visualizations for a reach-to-target movement smoothness study comparing three participant groups: young healthy controls (*Young_Control*), older healthy controls (*Aged_Control*), and individuals with post-stroke hemiparesis (*Stroke_Paretic*). It reads two clean CSV files produced by `01_pipeline_traitement.ipynb` — no raw `.dat` files are loaded here.
+
+- **`metrics_smoothness_export.csv`** — one row per movement segment, with pre-calculated kinematic metrics (SPARC, mean velocity, peak velocity, duration, number of submovements).
+- **`trajectories_export.csv`** — one row per time point, with raw x/y positions, velocity, and acceleration. Used for trajectory and velocity profile plots.
+
+The analysis proceeds in two stages: (1) qualitative visualization of movement trajectories and velocity profiles, and (2) quantitative inter-group comparison of kinematic metrics, culminating in a data-grounded conclusion.
+
+------------------------------------------------------------------------
+
+# Setup
+
+## Libraries
+
+```{r library-import}
+# --- Core Data Science & Wrangling ---
+library(tidyverse)
+
+# --- Reproducible Project Management ---
+library(here)
+
+# --- Advanced Kinematic Visualizations ---
+library(ggnewscale) # Multiple independent color scales within a single ggplot
+library(ggforce)    # Geometric shapes (circles for target annotation)
+library(patchwork)  # Multi-panel figure composition
+
+# --- Notebook Rendering & Reporting ---
+library(knitr)
+```
+
+## Data Import
+
+```{r data-import}
+df_metrics <- read.csv(here("exports", "metrics_smoothness_export.csv")) %>%
+  mutate(Subject_ID = paste0(Group, "_", Subject_ID))
+
+df_traj <- read.csv(here("exports", "trajectories_export.csv")) %>%
+  mutate(Subject_ID = paste0(Group, "_", Subject_ID))
+
+# Enforce consistent group ordering throughout the document
+group_levels <- c("Young_Control", "Aged_Control", "Stroke_Paretic")
+
+df_metrics <- df_metrics %>%
+  mutate(Group = factor(Group, levels = group_levels))
+
+df_traj <- df_traj %>%
+  mutate(Group = factor(Group, levels = group_levels))
+```
+
+## Data Manipulation
+
+```{r data-manipulation}
+# Subject-level summaries (mean, SD, median per metric)
+df_subject <- df_metrics %>%
+  group_by(Subject_ID, Group) %>%
+  summarise(
+    n_seg_subj      = n(),
+    # --- SPARC ---
+    avg_sparc_subj  = mean(SPARC,            na.rm = TRUE),
+    sd_sparc_subj   = sd(SPARC,              na.rm = TRUE),
+    med_sparc_subj  = median(SPARC,          na.rm = TRUE),
+    # --- Duration ---
+    avg_dur_subj    = mean(Duration_s,        na.rm = TRUE),
+    sd_dur_subj     = sd(Duration_s,          na.rm = TRUE),
+    med_dur_subj    = median(Duration_s,      na.rm = TRUE),
+    # --- Mean Velocity ---
+    avg_mvel_subj   = mean(Mean_Velocity,     na.rm = TRUE),
+    sd_mvel_subj    = sd(Mean_Velocity,       na.rm = TRUE),
+    med_mvel_subj   = median(Mean_Velocity,   na.rm = TRUE),
+    # --- N Submovements ---
+    avg_submov_subj = mean(N_Submovements,    na.rm = TRUE),
+    med_submov_subj = median(N_Submovements,  na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Group-level summaries (median + IQR computed from subject-level medians,
+# following a two-stage aggregation to avoid pseudo-replication)
+df_group <- df_subject %>%
+  group_by(Group) %>%
+  summarise(
+    n_subj_grp     = n(),
+    # --- SPARC ---
+    avg_sparc_grp  = mean(avg_sparc_subj,   na.rm = TRUE),
+    sd_sparc_grp   = sd(avg_sparc_subj,     na.rm = TRUE),
+    med_sparc_grp  = median(med_sparc_subj, na.rm = TRUE),
+    q25_sparc_grp  = quantile(med_sparc_subj, 0.25, na.rm = TRUE),
+    q75_sparc_grp  = quantile(med_sparc_subj, 0.75, na.rm = TRUE),
+    # --- Duration ---
+    avg_dur_grp    = mean(avg_dur_subj,     na.rm = TRUE),
+    sd_dur_grp     = sd(avg_dur_subj,       na.rm = TRUE),
+    med_dur_grp    = median(med_dur_subj,   na.rm = TRUE),
+    q25_dur_grp    = quantile(med_dur_subj, 0.25, na.rm = TRUE),
+    q75_dur_grp    = quantile(med_dur_subj, 0.75, na.rm = TRUE),
+    # --- Mean Velocity ---
+    avg_mvel_grp   = mean(avg_mvel_subj,    na.rm = TRUE),
+    sd_mvel_grp    = sd(avg_mvel_subj,      na.rm = TRUE),
+    med_mvel_grp   = median(med_mvel_subj,  na.rm = TRUE),
+    q25_mvel_grp   = quantile(med_mvel_subj, 0.25, na.rm = TRUE),
+    q75_mvel_grp   = quantile(med_mvel_subj, 0.75, na.rm = TRUE),
+    # --- N Submovements ---
+    avg_submov_grp = mean(avg_submov_subj,  na.rm = TRUE),
+    sd_submov_grp  = sd(avg_submov_subj,    na.rm = TRUE),
+    med_submov_grp = median(med_submov_subj, na.rm = TRUE),
+    q25_submov_grp = quantile(med_submov_subj, 0.25, na.rm = TRUE),
+    q75_submov_grp = quantile(med_submov_subj, 0.75, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+------------------------------------------------------------------------
+
+# Trajectory and Velocity Profile Visualization
+
+Before examining summary statistics, this section provides a qualitative overview of movement kinematics. Spatial trajectories and velocity profiles are displayed for representative subjects and segments to build intuition about group-level differences.
+
+## Spatial Trajectories
+
+### First Ten Segments per Group
+
+The figure below displays the first ten movement segments recorded for one representative subject per group (subject 1 in each group). Each colored path corresponds to a distinct segment, allowing visual assessment of spatial variability and trajectory regularity across groups.
+
+```{r plot-first-10-segments, fig.width=10, fig.height=4}
+df_traj %>%
+  filter(grepl("_1$", Subject_ID), Segment_Num <= 10) %>%
+  mutate(Segment_Num = factor(Segment_Num)) %>%
+  ggplot(aes(x = x, y = y, color = Segment_Num)) +
+  geom_path(linewidth = 0.7) +
+  coord_equal() +
+  facet_wrap(~Group) +
+  scale_color_brewer(palette = "Paired") +
+  labs(
+    title = "First 10 movement segments — one representative subject per group",
+    x = "X position (px)", y = "Y position (px)", color = "Segment"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.minor = element_blank())
+```
+
+------------------------------------------------------------------------
+
+### Cross-Subject Trajectory Comparison
+
+This figure overlays spatial trajectories for the same movement segment across all subjects, color-coded by group. A shared group color (blue: Young_Control, green: Aged_Control, red: Stroke_Paretic) allows direct visual comparison of inter-individual variability and movement path regularity within and between groups.
+
+```{r plot-spatial-reach-trajectories}
+# Group color palette — one flat color per group for readability
+group_colors <- c(
+  "Young_Control"  = "darkblue",  # Blue
+  "Aged_Control"   = "darkgreen",  # Green
+  "Stroke_Paretic" = "darkred"   # Red
+)
+
+plot_segment_spatial <- function(data_traj, segment_id = 1) {
+  df_sub <- data_traj %>% filter(Segment_Num == segment_id)
+
+  ggplot(df_sub, aes(x = x, y = y, group = Subject_ID, color = Group)) +
+    geom_path(alpha = 0.8, linewidth = 0.7) +
+    scale_color_manual(
+      values = group_colors,
+      labels = c("Young Control", "Aged Control", "Stroke Paretic"),
+      name   = "Group"
+    ) +
+    coord_equal() +
+    labs(
+      title = paste0("Spatial trajectories — Segment ", segment_id, " (all subjects)"),
+      x = "X position (px)",
+      y = "Y position (px)"
+    ) +
+    theme_minimal(base_size = 12) +
+    theme(
+      legend.position    = "right",
+      panel.grid.minor   = element_blank()
+    )
+}
+
+# The segment number can be changed.
+plot_segment_spatial(df_traj, segment_id = 1)
+```
+
+------------------------------------------------------------------------
+
+## Velocity Profiles
+
+The following panels display, for one representative subject per group, both the spatial trajectory (left) and the corresponding velocity profile over time (right) for a single movement segment. The target zone is overlaid on the trajectory as a red circle. The time axis is anchored to the longest movement observed **across all subjects and groups**, ensuring a fair cross-group comparison of movement duration and velocity shape.
+
+> **Parameterized rendering** — the subject and segment shown below are controlled by the `subject_id` and `segment_id` parameters declared in the YAML header. To display a different subject or segment without editing the code, re-render the document with `rmarkdown::render("02_analyse_statistique.Rmd", params = list(subject_id = 2, segment_id = 5))`.
+
+```{r plot-velocity-profiles, fig.width=12, fig.height=9}
+# t_max is derived from the longest movement across all subjects and groups,
+# not from the trajectory time-series, to avoid outlier time points inflating the axis
+groups <- c("Young_Control", "Aged_Control", "Stroke_Paretic")
+
+extract_segment <- function(group_name, num_segment, num_subject) {
+  subject_pattern <- paste0("_0?", num_subject, "$")
+  df_traj %>%
+    filter(Group == group_name, grepl(subject_pattern, Subject_ID),
+           Segment_Num == num_segment)
+}
+
+plot_kinematic_group <- function(group_name, num_segment, num_subject, t_max) {
+  data_sub <- extract_segment(group_name, num_segment, num_subject)
+  p_traj <- ggplot(data_sub, aes(x, y)) +
+    geom_path(alpha = 0.6, linewidth = 1, color = "darkblue") +
+    geom_circle(
+      data        = data_sub,
+      aes(x0 = target_x, y0 = target_y, r = target_r),
+      colour      = "red", linewidth = 0.3, alpha = 0.3,
+      inherit.aes = FALSE
+    ) +
+    coord_equal() +
+    labs(title = group_name) +
+    theme_void()
+  p_vel <- ggplot(data_sub, aes(x = t_s, y = velocity)) +
+    geom_path(alpha = 0.8, linewidth = 0.9) +
+    scale_x_continuous(limits = c(0, t_max)) +
+    labs(x = "Time (s)", y = "Velocity (px/s)") +
+    theme_minimal(base_size = 11) +
+    theme(panel.grid.minor = element_blank())
+  list(traj = p_traj, vel = p_vel)
+}
+
+bind_data <- map_dfr(groups, ~ extract_segment(.x, params$segment_id, params$subject_id))
+t_max     <- max(bind_data$t_s)
+
+rows <- map(groups, function(g) {
+  kin <- plot_kinematic_group(g, params$segment_id, params$subject_id, t_max)
+  (kin$traj | kin$vel) + plot_layout(widths = c(1, 2))
+})
+
+wrap_plots(rows, ncol = 1)
+```
+
+### To do / Future Improvements {.unnumbered}
+
+- Add a loop system or a function call to allow the display of selected segments.
+- Add a visualization of the sub-movements on the velocity profile.
+
+------------------------------------------------------------------------
+
+Even at this qualitative stage, systematic differences emerge across groups. Young controls exhibit smooth, direct trajectories with a single, bell-shaped velocity peak — the hallmark of well-planned, feedforward motor execution. Aged controls display slightly more variable paths and broader velocity profiles, suggesting increased reliance on online correction. Stroke patients show markedly fragmented trajectories with multiple velocity peaks, reflecting the series of discrete submovements that characterize post-stroke motor impairment. These observations motivate the quantitative comparison presented in the next section.
+
+------------------------------------------------------------------------
+
+# Inter-Group Kinematic Comparison
+
+This section quantifies the between-group differences identified qualitatively above. Four kinematic metrics are examined: SPARC (movement smoothness), mean velocity, movement duration, and number of submovements.
+
+## Metric Distributions by Group
+
+The boxplots below display, for each metric, the full distribution across all segments within each group. Whiskers extend to 1.5 times the interquartile range; points beyond this range are shown as individual outliers.
+
+```{r plot-group-comparison, fig.width=14, fig.height=10}
+# Metric labels for readable facet titles
+metric_labels <- c(
+  Peak_Velocity   = "Peak Velocity (px/s)",
+  Mean_Velocity   = "Mean Velocity (px/s)",
+  N_Submovements  = "N Submovements",
+  Duration_s      = "Duration (s)"
+)
+
+df_metrics %>%
+  select(Group, Peak_Velocity, Mean_Velocity, N_Submovements, Duration_s) %>%
+  pivot_longer(-Group, names_to = "metric", values_to = "value") %>%
+  mutate(metric = factor(metric, levels = names(metric_labels))) %>%
+  ggplot(aes(x = Group, y = value, fill = Group)) +
+  geom_boxplot(alpha = 0.6, show.legend = FALSE) +
+  scale_fill_manual(values = c(
+    "Young_Control"  = "darkblue",
+    "Aged_Control"   = "darkgreen",
+    "Stroke_Paretic" = "darkred")) +
+  facet_wrap(~metric, scales = "free_y", ncol = 2,
+             labeller = labeller(metric = metric_labels)) +
+  labs(
+    title = "Kinematic metric distributions across groups",
+    x     = NULL,
+    y     = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x      = element_text(angle = 20, hjust = 1),
+    panel.grid.minor = element_blank(),
+    strip.text       = element_text(face = "bold")
+  )
+```
+
+### To do / Future Improvements {.unnumbered}
+
+- Consider replacing segment-level boxplots with subject-level summary points (n = 3 per group) to better reflect the actual sample size and avoid inflated-n visual impression.
+
+------------------------------------------------------------------------
+
+## SPARC — Dedicated View
+
+SPARC (Spectral Arc Length) is the primary smoothness metric in this study and warrants a dedicated figure. The plot below isolates the SPARC distribution across groups, using the same color scheme as the rest of the document. The x-axis displays group labels; the y-axis shows SPARC values in arbitrary units (a.u.), where values closer to zero indicate smoother movements. Whiskers extend to 1.5 times the interquartile range.
+
+```{r plot-sparc, fig.width=7, fig.height=5}
+df_metrics %>%
+  ggplot(aes(x = Group, y = SPARC, fill = Group)) +
+  geom_boxplot(alpha = 0.6, show.legend = FALSE) +
+  scale_fill_manual(values = c(
+    "Young_Control"  = "darkblue",
+    "Aged_Control"   = "darkgreen",
+    "Stroke_Paretic" = "darkred"
+  )) +
+  labs(
+    title = "SPARC distribution across groups",
+    x     = NULL,
+    y     = "SPARC (a.u.)"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.x      = element_text(angle = 20, hjust = 1),
+    panel.grid.minor = element_blank()
+  )
+```
+
+### To do / Future Improvements {.unnumbered}
+
+- Add a horizontal reference line at the mean or median of the Young_Control group to make between-group deviations immediately readable.
+- Consider a violin plot overlay once the sample size increases.
+
+------------------------------------------------------------------------
+
+## Summary Statistics
+
+The table below reports group-level medians and interquartile ranges (IQR) for each kinematic metric, computed using a two-stage aggregation (segment → subject → group).
+
+```{r summary-table}
+df_group %>%
+  transmute(
+    "Group"           = Group,
+    "N"               = n_subj_grp,
+    "SPARC"           = sprintf("%.2f [%.2f – %.2f]", med_sparc_grp,  q25_sparc_grp,  q75_sparc_grp),
+    "Velocity (px/s)" = sprintf("%.2f [%.2f – %.2f]", med_mvel_grp,   q25_mvel_grp,   q75_mvel_grp),
+    "Duration (s)"    = sprintf("%.2f [%.2f – %.2f]", med_dur_grp,    q25_dur_grp,    q75_dur_grp),
+    "Submovements"    = sprintf("%.1f [%.1f – %.1f]", med_submov_grp, q25_submov_grp, q75_submov_grp)
+  ) %>%
+  kable(
+    align   = "c",
+    caption = "Table 1. Kinematic metrics per group — Median [Q1 – Q3], computed at group level."
+  )
+```
+
+------------------------------------------------------------------------
+
+# Conclusion
+
+## Effect of Healthy Aging
+
+Comparing young and older healthy controls reveals a moderate but consistent kinematic decline associated with normal aging. Mean movement velocity decreased from 302.65 px/s (Young_Control) to 233.46 px/s (Aged_Control), a reduction of approximately 23%. Movement duration increased from 1.90 s to 2.29 s, and the number of submovements rose from a median of 2.0 to 6.0 — suggesting that older adults required substantially more online trajectory corrections to complete the reach. This is corroborated by the SPARC index, which decreased from −1.48 to −1.66, indicating a modest but measurable reduction in movement smoothness. Together, these findings are consistent with the well-documented age-related slowing of voluntary movement and the increased reliance on sensory feedback for motor control.
+
+## Effect of Post-Stroke Hemiparesis
+
+The kinematic impact of stroke far exceeded that of healthy aging across all metrics. Compared to the aged control group, stroke patients exhibited a further 39% reduction in mean velocity (143.28 vs. 233.46 px/s), a near doubling of movement duration (4.56 vs. 2.29 s), and a dramatic increase in the number of submovements (20.0 vs. 6.0). Most strikingly, the SPARC index dropped to −2.37 (vs. −1.66 in aged controls), with high inter-subject variability (IQR: −3.05 to −2.11), reflecting the heterogeneity of motor impairment following stroke.
+
+These results illustrate the sensitivity of SPARC and associated kinematic metrics to both age-related motor decline and post-stroke hemiparesis. The fragmented, low-velocity, prolonged movements observed in stroke patients are consistent with a loss of feedforward motor planning and an increased dependence on discrete, corrective submovements — a pattern well documented in the neuromotor rehabilitation literature. Taken together, SPARC and movement kinematics offer a quantitative window into the physiological impact of stroke on voluntary upper-limb movement.
+
+### To do / Future Improvements {.unnumbered}
+
+- Implement a function-based architecture to replace repetitive code blocks.
