@@ -21,3 +21,12 @@ This repository contains the code implementation for analyzing movement smoothne
                 │
                 └──→ HTML report
 ```
+## Workflow
+
+| Step | File | Description | Output |
+|------|------|-------------|--------|
+| 00 *(optional)* | `00_test.ipynb` | Single-subject validation | — |
+| 01 | `01_pipeline_traitement.ipynb` | Batch processing of all subjects | `exports/*.csv` |
+| 02 | `02_statistical_analysis.Rmd` | Statistical analysis & visualization | HTML report |
+
+> Place raw `.dat` files in `/data` before running step 01.
