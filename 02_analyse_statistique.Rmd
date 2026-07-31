@@ -61,10 +61,10 @@ library(knitr)
 ## Data Import
 
 ```{r data-import}
-df_metrics <- read.csv(here("exports", "metrics_smoothness_export.csv")) %>%
+df_metrics <- read.csv(here("results", "metrics_smoothness_export.csv")) %>%
   mutate(Subject_ID = paste0(Group, "_", Subject_ID))
 
-df_traj <- read.csv(here("exports", "trajectories_export.csv")) %>%
+df_traj <- read.csv(here("results", "trajectories_export.csv")) %>%
   mutate(Subject_ID = paste0(Group, "_", Subject_ID))
 
 # Enforce consistent group ordering throughout the document
