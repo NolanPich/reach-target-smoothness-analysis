@@ -67,7 +67,7 @@ The pipeline produces:
 - spatial and kinematic figures;
 - summary tables;
 - an HTML report containing the statistical analysis and visualizations.
-- 
+  
 > Output files (HTML report, figures) are not tracked by Git and must be 
 > regenerated locally by running the pipeline.
 ---
@@ -85,7 +85,9 @@ The statistical analysis notebook requires R and the packages used for data mani
 ## Author / affiliation
 
 **Author :** Pichenot Nolan
+
 **Laboratory :** EuroMov Digital Health in Motion, Univ Montpellier, IMT Mines Alès
+
 **Supervisor**: Dr Denis MOTTET
 
 ```
