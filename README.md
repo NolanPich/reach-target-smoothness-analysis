@@ -29,7 +29,7 @@ This repository contains the data processing pipeline, statistical analysis, and
 /data (raw .dat files)
        │
        ▼
-00_test.ipynb          ← SPARC implementation test (single subject)
+00_sparc_validation.ipynb         ← SPARC implementation test (single subject)
        │
        ▼
 01_pipeline_traitement.ipynb
